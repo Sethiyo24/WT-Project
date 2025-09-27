@@ -1,0 +1,78 @@
+<?php
+session_start();
+header('Content-Type: application/json');
+include 'db.php';
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success'=>false,'error'=>'Not authenticated']);
+    exit;
+}
+$user_id = intval($_SESSION['user_id']);
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['success'=>false, 'error'=>'Method not allowed']);
+    exit;
+}
+
+$items_json = $_POST['items'] ?? '';
+$total = floatval($_POST['total'] ?? 0);
+$tax_total = floatval($_POST['tax_total'] ?? 0);
+$grand_total = floatval($_POST['grand_total'] ?? 0);
+$items = json_decode($items_json, true);
+
+if (!is_array($items) || count($items) == 0) {
+    echo json_encode(['success'=>false,'error'=>'Cart empty']);
+    exit;
+}
+
+mysqli_begin_transaction($conn);
+
+try {
+    // insert sale header
+    $stmt = $conn->prepare("INSERT INTO sales (user_id, total, tax_total, grand_total) VALUES (?, ?, ?, ?)");
+    $stmt->bind_param("iddd", $user_id, $total, $tax_total, $grand_total);
+    if (!$stmt->execute()) throw new Exception('Failed insert sale: ' . $stmt->error);
+    $sale_id = $stmt->insert_id;
+    $stmt->close();
+
+    foreach ($items as $it) {
+        $pid = intval($it['id']);
+        $qty = intval($it['qty']);
+        $price = floatval($it['price']);
+        $tax_amt = floatval($it['tax_amt']);
+
+        // lock product row and ensure it belongs to this user
+        $sel = $conn->prepare("SELECT stock, user_id FROM products WHERE id = ? FOR UPDATE");
+        $sel->bind_param("i", $pid);
+        $sel->execute();
+        $res = $sel->get_result();
+        if ($res->num_rows == 0) throw new Exception('Product not found: ' . $pid);
+        $row = $res->fetch_assoc();
+        $sel->close();
+
+        if (intval($row['user_id']) !== $user_id) throw new Exception('Unauthorized product access: ' . $pid);
+        $current_stock = intval($row['stock']);
+        if ($qty > $current_stock) throw new Exception('Not enough stock for product id ' . $pid);
+
+        // insert sale item
+        $ins = $conn->prepare("INSERT INTO sale_items (sale_id, product_id, qty, price, tax_amount) VALUES (?, ?, ?, ?, ?)");
+        $ins->bind_param("iiidd", $sale_id, $pid, $qty, $price, $tax_amt);
+        if (!$ins->execute()) throw new Exception('Failed to insert sale item: ' . $ins->error);
+        $ins->close();
+
+        // update stock
+        $new_stock = $current_stock - $qty;
+        $up = $conn->prepare("UPDATE products SET stock = ? WHERE id = ? AND user_id = ?");
+        $up->bind_param("iii", $new_stock, $pid, $user_id);
+        if (!$up->execute()) throw new Exception('Failed to update stock: ' . $up->error);
+        $up->close();
+    }
+
+    mysqli_commit($conn);
+    echo json_encode(['success'=>true,'sale_id'=>$sale_id]);
+} catch (Exception $e) {
+    mysqli_rollback($conn);
+    echo json_encode(['success'=>false,'error'=>$e->getMessage()]);
+}
+?>
