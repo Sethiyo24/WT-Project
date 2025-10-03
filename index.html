@@ -5,47 +5,211 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>POS System</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      height: 100vh;
+    /* Reset */
+    * {
       margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #121212; /* dark base */
+      color: #f5f5f5;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Animations */
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    header {
+      width: 100%;
+      padding: 20px 60px;
       display: flex;
-      flex-direction: column;
+      justify-content: space-between;
       align-items: center;
-      justify-content: center;
-      color: #fff;
-      text-align: center;
+      background: rgba(255, 255, 255, 0.05);
+      position: sticky;
+      top: 0;
+      backdrop-filter: blur(10px);
+      animation: fadeDown 1s ease forwards;
     }
-    h1 {
-      font-size: 40px;
-      margin-bottom: 20px;
-    }
-    .cta {
-      margin-top: 20px;
-    }
-    .cta a {
-      background: #fff;
-      color: #667eea;
-      padding: 12px 20px;
-      margin: 10px;
-      border-radius: 8px;
-      text-decoration: none;
-      font-size: 16px;
+
+    header h2 {
+      color: #ffd6e8; /* pastel pink */
       font-weight: bold;
-      transition: 0.3s;
     }
+
+    nav a {
+      color: #f5f5f5;
+      margin-left: 20px;
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s;
+    }
+
+    nav a:hover {
+      color: #ffd166; /* pastel yellow */
+    }
+
+    /* Hero Section */
+    .hero {
+      text-align: center;
+      padding: 100px 20px 60px;
+      background: linear-gradient(135deg, #764ba2, #667eea);
+      border-bottom-left-radius: 50px;
+      border-bottom-right-radius: 50px;
+      animation: fadeUp 1.2s ease forwards;
+    }
+
+    .hero h1 {
+      font-size: 3rem;
+      margin-bottom: 15px;
+      color: #ffe6f7; /* pastel pink-white */
+      animation: fadeIn 1.5s ease forwards;
+    }
+
+    .hero p {
+      font-size: 1.2rem;
+      color: #e0e0e0;
+      animation: fadeIn 1.8s ease forwards;
+    }
+
+    .cta {
+      margin-top: 30px;
+      animation: fadeUp 2s ease forwards;
+    }
+
+    .cta a {
+      display: inline-block;
+      background: #ffd166;
+      color: #121212;
+      padding: 12px 24px;
+      margin: 10px;
+      border-radius: 30px;
+      text-decoration: none;
+      font-size: 1rem;
+      font-weight: bold;
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+
     .cta a:hover {
-      background: #f1f1f1;
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0px 4px 15px rgba(0,0,0,0.4);
+    }
+
+    /* Features */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      padding: 60px 80px;
+    }
+
+    .feature-card {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 30px 20px;
+      border-radius: 20px;
+      text-align: center;
+      opacity: 0;
+      transform: translateY(40px);
+      transition: transform 0.3s, background 0.3s;
+    }
+
+    .feature-card h3 {
+      margin-bottom: 10px;
+      font-size: 1.4rem;
+    }
+
+    .feature-card:nth-child(1) h3 { color: #ffd6e8; } /* pink */
+    .feature-card:nth-child(2) h3 { color: #ffd166; } /* yellow */
+    .feature-card:nth-child(3) h3 { color: #a0e7e5; } /* blue-green */
+    .feature-card:nth-child(4) h3 { color: #cdb4db; } /* purple */
+
+    .feature-card:hover {
+      transform: translateY(-8px) scale(1.02);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Footer */
+    footer {
+      background: rgba(255,255,255,0.05);
+      text-align: center;
+      padding: 20px;
+      font-size: 0.9rem;
+      color: #bbb;
+      margin-top: 40px;
+      animation: fadeIn 2.5s ease forwards;
     }
   </style>
 </head>
 <body>
-  <h1>Welcome to POS System</h1>
-  <p>Manage sales, inventory & billing with ease</p>
-  <div class="cta">
-    <a href="signup.html">Sign Up</a>
-    <a href="login.html">Login</a>
-  </div>
+  <!-- Header -->
+  <header>
+    <h2>POS System</h2>
+    <nav>
+      <a href="#">Home</a>
+      <a href="#features">Features</a>
+      <a href="signup.html">Sign Up</a>
+      <a href="login.html">Login</a>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <h1>Welcome to POS System</h1>
+    <p>Manage sales, inventory & billing with ease and style</p>
+    <div class="cta">
+      <a href="signup.php">Get Started</a>
+      <a href="login.php">Login</a>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="features">
+    <div class="feature-card" style="animation: fadeUp 1s ease forwards 0.3s;">
+      <h3>⚡ Fast & Intuitive Interface</h3>
+      <p>Experience a sleek, modern interface built for speed and simplicity. 
+      Reduce checkout times, minimize staff training, and deliver a smoother 
+      customer experience with our user-friendly design.</p>
+    </div>
+    <div class="feature-card" style="animation: fadeUp 1s ease forwards 0.6s;">
+      <h3>📦 Smart Inventory Tracking</h3>
+      <p>Monitor stock levels in real-time and avoid running out of best-sellers. 
+      Our system helps you organize products efficiently and reduces wastage by 
+      alerting you when items are about to expire or run low.</p>
+    </div>
+    <div class="feature-card" style="animation: fadeUp 1s ease forwards 0.9s;">
+      <h3>📊 Advanced Sales Reports</h3>
+      <p>View detailed reports with charts and insights to track performance. 
+      Understand which products sell the most, identify trends, and make data-driven 
+      decisions to grow your business smarter and faster.</p>
+    </div>
+    <div class="feature-card" style="animation: fadeUp 1s ease forwards 1.2s;">
+       <h3>👥 Multi-User Management</h3>
+      <p>Provide access to multiple staff members with role-based permissions. 
+      Securely control who can view, edit, or manage specific operations while 
+      keeping your data safe and organized at all times.</p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <p>&copy; 2025 POS System | All rights reserved <br> Created by Nemi(Iu2341230158) & Omkar(Iu2341230143)</p>
+  </footer>
 </body>
 </html>

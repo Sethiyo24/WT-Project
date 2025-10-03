@@ -55,7 +55,7 @@ $username = htmlspecialchars($_SESSION['username']);
     <a href="dashboard.php">Dashboard</a>
     <a href="inventory.php">Inventory</a>
     <a href="performance.php">Performance</a>
-    <a href="records.php">Records</a>
+    <a href="record_sale.php">Records</a>
   </nav>
 
   <main>

@@ -2,11 +2,14 @@
 session_start();
 header('Content-Type: application/json');
 include 'db.php';
+
+// require login
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
     echo json_encode(['success'=>false,'error'=>'Not authenticated']);
     exit;
 }
+
 $user_id = intval($_SESSION['user_id']);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -55,11 +58,11 @@ try {
         $current_stock = intval($row['stock']);
         if ($qty > $current_stock) throw new Exception('Not enough stock for product id ' . $pid);
 
-        // insert sale item
-        $ins = $conn->prepare("INSERT INTO sale_items (sale_id, product_id, qty, price, tax_amount) VALUES (?, ?, ?, ?, ?)");
-        $ins->bind_param("iiidd", $sale_id, $pid, $qty, $price, $tax_amt);
-        if (!$ins->execute()) throw new Exception('Failed to insert sale item: ' . $ins->error);
-        $ins->close();
+        // insert sale item WITH user_id
+        $stmt2 = $conn->prepare("INSERT INTO sale_items (sale_id, product_id, user_id, qty, price, tax_amount) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt2->bind_param("iiiidd", $sale_id, $pid, $user_id, $qty, $price, $tax_amt);
+        if (!$stmt2->execute()) throw new Exception('Failed to insert sale item: ' . $stmt2->error);
+        $stmt2->close();
 
         // update stock
         $new_stock = $current_stock - $qty;
@@ -76,3 +79,4 @@ try {
     echo json_encode(['success'=>false,'error'=>$e->getMessage()]);
 }
 ?>
+
