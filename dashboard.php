@@ -1,62 +1,101 @@
 <?php
 session_start();
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
+  header("Location: login.php");
+  exit();
 }
 $username = htmlspecialchars($_SESSION['username']);
+
+include 'db.php';
+date_default_timezone_set('Asia/Kolkata');
+$user_id = intval($_SESSION['user_id']);
+
+$today_sales = [];
+$stmt = $conn->prepare("
+SELECT 
+    s.total, s.tax_total, s.grand_total,
+    SUM(si.qty * p.cost_price) AS cost_total,   -- <--- add this
+    GROUP_CONCAT(CONCAT(p.name,' x',si.qty) SEPARATOR ', ') AS items_sold
+FROM sales s
+LEFT JOIN sale_items si ON s.id = si.sale_id
+LEFT JOIN products p ON si.product_id = p.id
+WHERE s.user_id=? AND DATE(s.created_at)=CURDATE()
+GROUP BY s.id
+
+");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+while ($row = $result->fetch_assoc()) {
+  $today_sales[] = $row;
+}
+$stmt->close();
+
+// Initialize today's metrics
+$today_total_sales = count($today_sales);
+$today_revenue = 0;
+$today_profit = 0;
+$today_items = 0;
+
+foreach ($today_sales as $s) {
+  $today_revenue += $s['grand_total']; // price + tax
+  $today_profit += ($s['total'] + $s['tax_total'] - $s['tax_total'] - $s['cost_total']); 
+
+  if (!empty($s['items_sold'])) {
+    $items = explode(',', $s['items_sold']);
+    foreach ($items as $it) {
+      preg_match('/(.+) x(\d+)/', $it, $m);
+      if (isset($m[2])) {
+        $today_items += intval($m[2]);
+      }
+    }
+  }
+}
 ?>
 <!DOCTYPE html>
 <html ng-app="POSApp">
+
 <head>
   <meta charset="utf-8">
   <title>POS Dashboard</title>
   <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
-  <style>
-    /* keep your existing styles (same as before) */
-    * { box-sizing: border-box; font-family: Arial, sans-serif; }
-    body { margin:0; background:#f4f6f9; background-color: #A7D9F5; }
-    header { background:#2c3e50; color:#fff; padding:12px 20px; display:flex; align-items:center; justify-content:space-between; }
-    header .brand { font-size:20px; font-weight:700; }
-    header .user { font-size:14px; opacity:0.95; }
-    nav { background:#34495e; color:#fff; padding:8px 20px; }
-    nav a { color:#fff; margin-right:16px; text-decoration:none; font-weight:600; }
-    main { display:flex; height: calc(100vh - 92px); padding:16px; gap:16px; }
-    .left { flex: 0 0 70%; background:#fff; padding:12px; border-radius:8px; overflow:auto; }
-    .right { flex: 0 0 30%; background:#fff; padding:12px; border-radius:8px; overflow:auto; display:flex; flex-direction:column; }
-    .controls { margin-bottom:10px; display:flex; gap:10px; }
-    .search { flex:1; padding:8px; border-radius:6px; border:1px solid #ddd; }
-    .product-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:12px; }
-    .product-card { border:1px solid #eee; border-radius:8px; padding:8px; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.03); cursor:pointer; }
-    .product-card img { width:100%; height:90px; object-fit:cover; border-radius:6px; }
-    .product-name { font-weight:600; margin:8px 0 4px; font-size:14px; }
-    .product-meta { font-size:13px; color:#555; }
-    .add-btn { margin-top:8px; background:#27ae60; color:#fff; border:none; padding:8px 10px; border-radius:6px; cursor:pointer; }
-    .add-btn[disabled] { background:#ccc; cursor:not-allowed; }
-    .cart { flex:1; display:flex; flex-direction:column; gap:8px; }
-    .cart-list { flex:1; overflow:auto; }
-    .cart-item { display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #f0f0f0; }
-    .qty-controls button { padding:4px 8px; margin:0 4px; }
-    .totals { border-top:1px solid #eee; padding-top:10px; }
-    .checkout-btn { background:#2575fc; color:#fff; border:none; padding:12px; border-radius:8px; width:100%; cursor:pointer; font-weight:700; }
-    .small { font-size:13px; color:#666; }
-  </style>
+  <link rel="stylesheet" href="dashboard.css">
 </head>
+
 <body ng-controller="POSCtrl">
 
   <header>
-    <div class="brand">Psychoney POS</div>
-    <div class="user">Logged in as: <?php echo $username; ?> &nbsp; | &nbsp;
-      <button style="background-color:#A7D9F5;"><a href="logout.php" style="color:black;text-decoration:none;">Logout</a></button>
+    <div class="brand">POS System</div>
+    <nav>
+      <a href="dashboard.php">Dashboard</a>
+      <a href="inventory.php">Inventory</a>
+      <a href="performance.php">Performance</a>
+      <a href="record_sale.php">Records</a>
+    </nav>
+    <div class="user" id="who">Logged in as: <?php echo $username; ?> &nbsp; | &nbsp;
+      <button style="background: linear-gradient(135deg, #764ba2, #667eea);"><a href="logout.php"
+          style="color:black;text-decoration:none;">Logout</a></button>
     </div>
   </header>
-
-  <nav>
-    <a href="dashboard.php">Dashboard</a>
-    <a href="inventory.php">Inventory</a>
-    <a href="performance.php">Performance</a>
-    <a href="record_sale.php">Records</a>
-  </nav>
+  <!-- Stats section -->
+  <section class="stats">
+    <div class="stat-box" id="s1">
+      <div class="stat-title">Today’s Sales</div>
+      <div class="stat-value"><?php echo $today_total_sales; ?></div>
+    </div>
+    <div class="stat-box" id="s2">
+      <div class="stat-title">Cash-In(Revenue)</div>
+      <div class="stat-value">₹<?php echo number_format($today_revenue, 2); ?></div>
+    </div>
+    <div class="stat-box" id="s3">
+      <div class="stat-title">Profit</div>
+      <div class="stat-value">₹<?php echo number_format($today_profit, 2); ?></div>
+    </div>
+    <div class="stat-box" id="s4">
+      <div class="stat-title">Items Sold</div>
+      <div class="stat-value"><?php echo $today_items; ?></div>
+    </div>
+  </section>
 
   <main>
     <div class="left">
@@ -71,9 +110,10 @@ $username = htmlspecialchars($_SESSION['username']);
 
       <div class="product-grid">
         <div class="product-card" ng-repeat="p in products | filter:q | orderBy:sortBy" title="{{p.name}}">
-          <img ng-src="{{p.image && p.image !== '' ? p.image : 'https://via.placeholder.com/160x90?text=No+Image'}}" alt="img">
+          <img ng-src="{{p.image && p.image !== '' ? p.image : 'https://via.placeholder.com/160x90?text=No+Image'}}"
+            alt="img">
           <div class="product-name">{{p.name}}</div>
-          <div class="product-meta">₹{{p.price | number:2}}  •  {{p.tax_percent}}% GST</div>
+          <div class="product-meta">₹{{p.price | number:2}} • {{p.tax_percent}}% GST</div>
           <div class="small" ng-if="p.stock > 5">Stock: {{p.stock}}</div>
           <div class="small" ng-if="p.stock <= 5 && p.stock > 0" style="color:#e67e22">Low stock: {{p.stock}}</div>
           <div class="small" ng-if="p.stock == 0" style="color:#c0392b">Out of stock</div>
@@ -98,11 +138,13 @@ $username = htmlspecialchars($_SESSION['username']);
                 <button ng-click="changeQty(item, +1)">+</button>
               </div>
               <div style="margin-top:6px; font-weight:700">₹{{(item.price*item.qty + item.tax_amt) | number:2}}</div>
-              <button style="margin-top:6px;background:#e74c3c;color:#fff;border:none;padding:6px;border-radius:6px;cursor:pointer;"
-                      ng-click="removeItem(idx)">Remove</button>
+              <button
+                style="margin-top:6px;background:#e74c3c;color:#fff;border:none;padding:6px;border-radius:6px;cursor:pointer;"
+                ng-click="removeItem(idx)">Remove</button>
             </div>
           </div>
-          <div ng-if="cart.length == 0" class="small" style="padding:10px;">Cart is empty. Click items on the left to add.</div>
+          <div ng-if="cart.length == 0" class="small" style="padding:10px;">Cart is empty. Click items on the left to
+            add.</div>
         </div>
 
         <div class="totals">
@@ -118,99 +160,145 @@ $username = htmlspecialchars($_SESSION['username']);
 
   </main>
 
-<script>
+  <script>
 angular.module('POSApp', [])
-.controller('POSCtrl', ['$scope', '$http', function($scope, $http) {
+.controller('POSCtrl', ['$scope', '$http', function ($scope, $http) {
   $scope.products = [];
   $scope.cart = [];
   $scope.total = 0;
   $scope.tax_total = 0;
   $scope.grand_total = 0;
 
-  $scope.loadProducts = function() {
-    $http.get('get_products.php').then(function(resp) {
-      $scope.products = resp.data;
-    }, function() {
-      alert('Could not load products. Check get_products.php');
+  // --- Today stats ---
+  $scope.todayStats = {
+    total_sales: 0,
+    revenue: 0,
+    profit: 0,
+    items_sold: 0
+  };
+
+  $scope.loadTodayStats = function() {
+    $http.get('today_stats.php').then(function(resp){
+      $scope.todayStats = resp.data || $scope.todayStats;
+    }, function(){
+      console.error('Failed to load today\'s stats');
     });
   };
 
-  $scope.addToCart = function(p) {
+  // --- Load products ---
+  $scope.loadProducts = function () {
+    $http.get('get_products.php').then(function (resp) {
+        // Map each product to include a numeric cost
+        $scope.products = resp.data.map(p => ({
+    ...p,
+    cost: parseFloat(p.cost_price || 0)
+}));
+
+    }, function () {
+        alert('Could not load products. Check get_products.php');
+    });
+};
+
+
+  // --- Add to cart ---
+  $scope.addToCart = function (p) {
     if (p.stock == 0) { alert('Item out of stock'); return; }
-    var found = $scope.cart.find(function(i){ return i.id == p.id; });
+    var found = $scope.cart.find(function (i) { return i.id == p.id; });
     if (found) {
       if (found.qty < p.stock) { found.qty += 1; }
       else { alert('Not enough stock'); }
     } else {
       $scope.cart.push({
-        id: p.id,
-        name: p.name,
-        price: parseFloat(p.price),
-        qty: 1,
-        tax_percent: parseFloat(p.tax_percent),
-        tax_amt: (parseFloat(p.price) * 1) * (parseFloat(p.tax_percent)/100)
-      });
+    id: p.id,
+    name: p.name,
+    price: parseFloat(p.price),
+    cost: parseFloat(p.cost || 0),   // <-- ADD THIS
+    qty: 1,
+    tax_percent: parseFloat(p.tax_percent),
+    tax_amt: parseFloat(p.price) * 1 * (parseFloat(p.tax_percent) / 100)
+});
+
     }
     $scope.calculateTotals();
   };
 
-  $scope.changeQty = function(item, delta) {
-    var prod = $scope.products.find(function(p){ return p.id == item.id; });
+  // --- Change quantity ---
+  $scope.changeQty = function (item, delta) {
+    var prod = $scope.products.find(function (p) { return p.id == item.id; });
     var newQty = item.qty + delta;
     if (newQty < 1) return;
     if (prod && newQty > prod.stock) { alert('Not enough stock'); return; }
     item.qty = newQty;
-    item.tax_amt = (item.price * item.qty) * (item.tax_percent/100);
+    item.tax_amt = (item.price * item.qty) * (item.tax_percent / 100);
     $scope.calculateTotals();
   };
 
-  $scope.removeItem = function(idx) {
+  // --- Remove item ---
+  $scope.removeItem = function (idx) {
     $scope.cart.splice(idx, 1);
     $scope.calculateTotals();
   };
 
-  $scope.calculateTotals = function() {
-    var total=0, tax_total=0;
-    $scope.cart.forEach(function(it) {
-      total += it.price * it.qty;
-      tax_total += (it.price * it.qty) * (it.tax_percent/100);
+  // --- Calculate totals ---
+  $scope.calculateTotals = function () {
+    var total = 0, tax_total = 0, grand_total = 0, cost_total = 0;
+
+    $scope.cart.forEach(function (it) {
+        var item_total = it.price * it.qty;
+        var item_tax = item_total * (it.tax_percent / 100);
+        total += item_total;
+        tax_total += item_tax;
+        grand_total += item_total + item_tax;
+        cost_total += it.cost * it.qty;  // use correct cost
     });
+
     $scope.total = total;
     $scope.tax_total = tax_total;
-    $scope.grand_total = total + tax_total;
-  };
+    $scope.grand_total = grand_total;
+    $scope.total_profit = grand_total - tax_total - cost_total;  // correct profit
+};
 
-  $scope.checkout = function() {
+
+
+  // --- Checkout ---
+  $scope.checkout = function () {
     if ($scope.cart.length == 0) { alert('Cart is empty'); return; }
 
-    var items = $scope.cart.map(function(i){ return { id: i.id, qty: i.qty, price: i.price, tax_amt: (i.price*i.qty)*(i.tax_percent/100) }; });
+    var items = $scope.cart.map(function (i) { 
+      return { id: i.id, qty: i.qty, price: i.price, tax_amt: (i.price * i.qty) * (i.tax_percent / 100) }; 
+    });
 
     var data = 'items=' + encodeURIComponent(JSON.stringify(items))
-             + '&total=' + encodeURIComponent($scope.total)
-             + '&tax_total=' + encodeURIComponent($scope.tax_total)
-             + '&grand_total=' + encodeURIComponent($scope.grand_total);
+      + '&total=' + encodeURIComponent($scope.total)
+      + '&tax_total=' + encodeURIComponent($scope.tax_total)
+      + '&grand_total=' + encodeURIComponent($scope.grand_total);
+      + '&total_profit=' + encodeURIComponent($scope.total_profit); 
 
     $http.post('add_sale.php', data, {
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'}
-    }).then(function(resp) {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    }).then(function (resp) {
       if (resp.data && resp.data.success) {
         alert('Sale recorded. Bill ID: ' + resp.data.sale_id);
         $scope.cart = [];
         $scope.calculateTotals();
-        $scope.loadProducts(); // refresh stock after sale
+        $scope.loadProducts();      // refresh stock
+        $scope.loadTodayStats();    // reload today stats
       } else {
         alert('Failed to save sale: ' + (resp.data.error || 'unknown'));
       }
-    }, function() {
+    }, function () {
       alert('Server error while saving sale.');
     });
   };
 
-  // init
+  // --- Init ---
   $scope.loadProducts();
   $scope.calculateTotals();
+  $scope.loadTodayStats(); // load today stats on page load
 }]);
 </script>
 
+
 </body>
+
 </html>
