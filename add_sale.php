@@ -31,14 +31,38 @@ if (!is_array($items) || count($items) == 0) {
 
 mysqli_begin_transaction($conn);
 
+// ... [Start of add_sale.php code] ...
+
+mysqli_begin_transaction($conn);
+
 try {
-    // insert sale header
+    // 1. INSERT SALE HEADER (temporarily without the user_bill_number)
     $stmt = $conn->prepare("INSERT INTO sales (user_id, total, tax_total, grand_total) VALUES (?, ?, ?, ?)");
     $stmt->bind_param("iddd", $user_id, $total, $tax_total, $grand_total);
     if (!$stmt->execute()) throw new Exception('Failed insert sale: ' . $stmt->error);
-    $sale_id = $stmt->insert_id;
+    $sale_id = $stmt->insert_id; // Store the GLOBAL ID for safety/rollback
     $stmt->close();
 
+    // 2. CALCULATE NEXT USER BILL NUMBER
+    // Get the maximum user_bill_number used by this user so far
+    $max_stmt = $conn->prepare("SELECT MAX(user_bill_number) AS max_num FROM sales WHERE user_id = ?");
+    $max_stmt->bind_param("i", $user_id);
+    $max_stmt->execute();
+    $max_result = $max_stmt->get_result();
+    $max_row = $max_result->fetch_assoc();
+    $max_stmt->close();
+    
+    // Calculate the new bill number (if max_num is NULL, start at 1)
+    $user_bill_number = intval($max_row['max_num']) + 1;
+
+    // 3. UPDATE THE SALE RECORD with the new user_bill_number
+    $update_stmt = $conn->prepare("UPDATE sales SET user_bill_number = ? WHERE id = ?");
+    $update_stmt->bind_param("ii", $user_bill_number, $sale_id);
+    if (!$update_stmt->execute()) throw new Exception('Failed to update bill number: ' . $update_stmt->error);
+    $update_stmt->close();
+
+
+    // 4. PROCESS SALE ITEMS AND STOCK UPDATES (Keep your existing stock logic)
     foreach ($items as $it) {
         $pid = intval($it['id']);
         $qty = intval($it['qty']);
@@ -72,11 +96,15 @@ try {
         $up->close();
     }
 
+    // 5. COMMIT AND RETURN THE USER-SPECIFIC BILL NUMBER
     mysqli_commit($conn);
-    echo json_encode(['success'=>true,'sale_id'=>$sale_id]);
+    // Return the user-specific bill number
+    echo json_encode(['success'=>true,'sale_id'=>$user_bill_number]); 
+    
 } catch (Exception $e) {
     mysqli_rollback($conn);
     echo json_encode(['success'=>false,'error'=>$e->getMessage()]);
 }
+// ... [End of add_sale.php code] ...
 ?>
 

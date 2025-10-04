@@ -53,13 +53,13 @@ function one_col_query($conn, $sql, $user_id) {
 $sql = "SELECT COALESCE(SUM(qty), 0) FROM sale_items WHERE user_id = ?";
 $total_items = (int) one_col_query($conn, $sql, $user_id);
 
-// 2) Total revenue (sum price * qty from sale_items)
-$sql = "SELECT COALESCE(SUM(price * qty), 0) FROM sale_items WHERE user_id = ?";
-$total_revenue = (float) one_col_query($conn, $sql, $user_id);
-
-// 3) Total tax collected (sum tax_amount from sale_items)
+// 2) Total tax collected (sum tax_amount from sale_items)
 $sql = "SELECT COALESCE(SUM(tax_amount), 0) FROM sale_items WHERE user_id = ?";
 $total_tax = (float) one_col_query($conn, $sql, $user_id);
+
+// 3) Total revenue = sum of (price*qty + tax_amount)
+$sql = "SELECT COALESCE(SUM(price*qty + tax_amount), 0) FROM sale_items WHERE user_id = ?";
+$total_revenue = (float) one_col_query($conn, $sql, $user_id);
 
 // 4) Total cost (sum cost_price * qty by joining products)
 $sql = "SELECT COALESCE(SUM(p.cost_price * si.qty), 0)
@@ -68,8 +68,8 @@ $sql = "SELECT COALESCE(SUM(p.cost_price * si.qty), 0)
         WHERE si.user_id = ?";
 $total_cost = (float) one_col_query($conn, $sql, $user_id);
 
-// 5) Total profit (including tax) = (revenue + tax) - cost
-$total_profit = ($total_revenue - $total_cost);
+// 5) Total profit = revenue - cost
+$total_profit = $total_revenue - $total_cost - $total_tax;
 
 // 6) Total sales count (number of sale headers)
 $sql = "SELECT COALESCE(COUNT(*), 0) FROM sales WHERE user_id = ?";
@@ -190,7 +190,7 @@ $conn->close();
     </div>
 
     <div class="card">
-      <div class="k">Total Profit (incl. tax) (₹)</div>
+      <div class="k">Total Profit (₹)</div>
       <div class="v <?php echo $total_profit>=0 ? 'positive' : 'negative'; ?>">₹<?php echo number_format($total_profit,2); ?></div>
     </div>
 

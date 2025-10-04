@@ -1,0 +1,5 @@
+see my database name is pos_db which has 4 tables - 
+1.user_pos (id , username , email , password , created_at)
+2.products( id , user_id , name , description , price , cost_price , tax_percent , stock , image , created_at)
+3.sales(id , user_id , total , tax_total , grand_total , created_at) 
+4.sale_items(id , sale_id , product_id , user_id , qty , price , tax_amount , created_at) ..... now please remember it and read it properly

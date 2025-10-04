@@ -12,7 +12,7 @@ $user_id = intval($_SESSION['user_id']);
 // --- 1. Fetch all sales for this user ---
 $sales = [];
 $res = $conn->prepare("
-    SELECT s.id, s.total, s.tax_total, s.grand_total, s.created_at,
+    SELECT s.user_bill_number, s.total, s.tax_total, s.grand_total, s.created_at,
            GROUP_CONCAT(CONCAT(p.name,' x',si.qty) SEPARATOR ', ') AS items_sold
     FROM sales s
     LEFT JOIN sale_items si ON s.id = si.sale_id
@@ -177,7 +177,7 @@ td img{width:50px; height:50px; object-fit:cover; border-radius:6px;}
 <?php }else{ 
 foreach($sales as $s){ ?>
 <tr>
-<td><?php echo intval($s['id']); ?></td>
+<td><?php echo intval($s['user_bill_number']); ?></td>
 <td><?php echo htmlspecialchars($s['items_sold'] ?? ''); ?></td>
 <td>₹<?php echo number_format($s['total'],2); ?></td>
 <td>₹<?php echo number_format($s['tax_total'],2); ?></td>

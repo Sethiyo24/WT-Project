@@ -9,48 +9,6 @@ $username = htmlspecialchars($_SESSION['username']);
 include 'db.php';
 date_default_timezone_set('Asia/Kolkata');
 $user_id = intval($_SESSION['user_id']);
-
-$today_sales = [];
-$stmt = $conn->prepare("
-SELECT 
-    s.total, s.tax_total, s.grand_total,
-    SUM(si.qty * p.cost_price) AS cost_total,   -- <--- add this
-    GROUP_CONCAT(CONCAT(p.name,' x',si.qty) SEPARATOR ', ') AS items_sold
-FROM sales s
-LEFT JOIN sale_items si ON s.id = si.sale_id
-LEFT JOIN products p ON si.product_id = p.id
-WHERE s.user_id=? AND DATE(s.created_at)=CURDATE()
-GROUP BY s.id
-
-");
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$result = $stmt->get_result();
-while ($row = $result->fetch_assoc()) {
-  $today_sales[] = $row;
-}
-$stmt->close();
-
-// Initialize today's metrics
-$today_total_sales = count($today_sales);
-$today_revenue = 0;
-$today_profit = 0;
-$today_items = 0;
-
-foreach ($today_sales as $s) {
-  $today_revenue += $s['grand_total']; // price + tax
-  $today_profit += ($s['total'] + $s['tax_total'] - $s['tax_total'] - $s['cost_total']); 
-
-  if (!empty($s['items_sold'])) {
-    $items = explode(',', $s['items_sold']);
-    foreach ($items as $it) {
-      preg_match('/(.+) x(\d+)/', $it, $m);
-      if (isset($m[2])) {
-        $today_items += intval($m[2]);
-      }
-    }
-  }
-}
 ?>
 <!DOCTYPE html>
 <html ng-app="POSApp">
@@ -80,22 +38,22 @@ foreach ($today_sales as $s) {
   <!-- Stats section -->
   <section class="stats">
     <div class="stat-box" id="s1">
-      <div class="stat-title">Today’s Sales</div>
-      <div class="stat-value"><?php echo $today_total_sales; ?></div>
+        <div class="stat-title">Today’s Sales</div>
+        <div class="stat-value">{{ todayStats.total_sales }}</div>
     </div>
     <div class="stat-box" id="s2">
-      <div class="stat-title">Cash-In(Revenue)</div>
-      <div class="stat-value">₹<?php echo number_format($today_revenue, 2); ?></div>
+        <div class="stat-title">Cash-In(Revenue)</div>
+        <div class="stat-value">₹{{ todayStats.revenue | number:2 }}</div>
     </div>
     <div class="stat-box" id="s3">
-      <div class="stat-title">Profit</div>
-      <div class="stat-value">₹<?php echo number_format($today_profit, 2); ?></div>
+        <div class="stat-title">Gross Profit</div>
+        <div class="stat-value">₹{{ todayStats.profit | number:2 }}</div> 
     </div>
     <div class="stat-box" id="s4">
-      <div class="stat-title">Items Sold</div>
-      <div class="stat-value"><?php echo $today_items; ?></div>
+        <div class="stat-title">Items Sold</div>
+        <div class="stat-value">{{ todayStats.items_sold }}</div>
     </div>
-  </section>
+</section>
 
   <main>
     <div class="left">
@@ -177,13 +135,30 @@ angular.module('POSApp', [])
     items_sold: 0
   };
 
-  $scope.loadTodayStats = function() {
-    $http.get('today_stats.php').then(function(resp){
-      $scope.todayStats = resp.data || $scope.todayStats;
-    }, function(){
-      console.error('Failed to load today\'s stats');
+// NEW CODE TO BE USED
+$scope.loadTodayStats = function() {
+    $http.get('today_stats.php', {
+        // Explicitly parse the response data as JSON
+        transformResponse: function(data, headersGetter) {
+            // Only try to parse if there is data
+            if (data) {
+                try {
+                    return angular.fromJson(data);
+                } catch (e) {
+                    console.error("JSON Parse Error:", e);
+                    return data; // Return original data if parsing fails
+                }
+            }
+            return data;
+        }
+    }).then(function(resp){
+        // Success: response data is now guaranteed to be parsed
+        $scope.todayStats = resp.data || $scope.todayStats;
+    }, function(error){
+        // Error handler: this will now only run if the network request fails
+        console.error('Failed to load today\'s stats', error);
     });
-  };
+};
 
   // --- Load products ---
   $scope.loadProducts = function () {
@@ -271,8 +246,8 @@ angular.module('POSApp', [])
     var data = 'items=' + encodeURIComponent(JSON.stringify(items))
       + '&total=' + encodeURIComponent($scope.total)
       + '&tax_total=' + encodeURIComponent($scope.tax_total)
-      + '&grand_total=' + encodeURIComponent($scope.grand_total);
-      + '&total_profit=' + encodeURIComponent($scope.total_profit); 
+      + '&grand_total=' + encodeURIComponent($scope.grand_total)
+      + '&total_profit=' + encodeURIComponent($scope.total_profit)
 
     $http.post('add_sale.php', data, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
